@@ -1,86 +1,168 @@
-import CSSLayout from '../index.js'
-import { Layout, Menu, Icon, Breadcrumb } from 'antd';
-const { SubMenu } = Menu;
-const { Header, Sider, Content, Footer } = Layout;
-import './index.css'
+import App from '../index'
+import React, {Component} from 'react'
+import { Breadcrumb, List, Avatar, Icon, Modal, Button, Row, Col, Spin, message } from 'antd';
+import axios from 'axios'
 
-export default class SiderDemo extends React.Component {
+// const host = 'http://127.0.0.1:7001'
+const host = 'http://www.ethanfun.club:7001'
+
+const IconText = ({ type, text }) => (
+  <span>
+    <Icon type={type} style={{ marginRight: 8 }} />
+    {text}
+  </span>
+);
+
+export default class Home extends Component {
+  static async getInitialProps(){
+    const res = await axios.get(`${host}/job`)
+    return {
+      listData: res.data
+    }
+  }
+
   state = {
-    collapsed: false,
+    previewVisible: false,
+    previewImage: '',
+    listData: this.props.listData || [],
+    loading: false,
+    loadingMore: false,
+    showLoadingMore: true,
+    page: 1,
   };
-  toggle = () => {
+
+  bread = [
+    <Breadcrumb.Item key={1}>菜单</Breadcrumb.Item>,
+    <Breadcrumb.Item key={2}>职位</Breadcrumb.Item>,
+  ]
+
+  componentDidMount() {
+    // console.log(this.props)
+    // axios.get(`${host}/job`,{
+    //   headers: {'x-csrf-token': this.getCsrf()}
+    // })
+    //   .then(res => {console.log(res.data)})
+  }
+
+  getCsrf = () => {
+    if(typeof window !== 'undefined') {
+      let keyValue = document.cookie.match('(^|;) ?csrfToken=([^;]*)(;|$)');
+      return keyValue ? keyValue[2] : null;
+    }
+  }
+
+  handleCancel = () => this.setState({ previewVisible: false })
+
+  handlePreview = (file) => () => {
     this.setState({
-      collapsed: !this.state.collapsed,
+      previewImages: file,
+      previewImage: file[0],
+      previewImageIndex: 0,
+      previewVisible: true,
     });
   }
+
+  right = () => {
+    const {previewImageIndex, previewImages} = this.state
+    if(previewImageIndex == previewImages.length - 1) {
+      return
+    }
+    this.setState({
+      previewImageIndex: previewImageIndex + 1,
+      previewImage: previewImages[previewImageIndex + 1],
+    })
+    console.log('left', this.state)
+  }
+
+  left = () => {
+    const {previewImageIndex, previewImages} = this.state
+    if(previewImageIndex == 0) {
+      return
+    }
+    this.setState({
+      previewImageIndex: previewImageIndex - 1,
+      previewImage: previewImages[previewImageIndex - 1],
+    })
+    console.log('right', this.state)
+  }
+
+  onLoadMore = async () => {
+    await this.setState({ loadingMore: true});
+    const res = await axios.get(`${host}/job`, {params: {page: this.state.page + 1}})
+    if(res.data.length == 0) {
+      message.warning('没有更多数据了', 2, () => {
+        this.setState({
+          loadingMore: false,
+        })
+      })
+      return
+    }
+    const data = this.state.listData.concat(res.data);
+    this.setState({
+      listData: data,
+      loadingMore: false,
+      page: this.state.page + 1,
+    }, () => {
+        // Resetting window's offsetTop so as to display react-virtualized demo underfloor.
+        // In real scene, you can using public method of react-virtualized:
+        // https://stackoverflow.com/questions/46700726/how-to-use-public-method-updateposition-of-react-virtualized
+        window.dispatchEvent(new Event('resize'));
+      });
+  }
+
   render() {
-    return (
-      <CSSLayout>
-        <Layout>
-          <Header className="header">
-            <div className="logo" />
-            <Icon
-              className="trigger"
-              type={this.state.collapsed ? 'menu-unfold' : 'menu-fold'}
-              onClick={this.toggle}
-            />
-            <Menu
-              theme="dark"
-              mode="horizontal"
-              defaultSelectedKeys={['2']}
-              style={{ lineHeight: '64px' }}
-            >
-              <Menu.Item key="1">nav 1</Menu.Item>
-              <Menu.Item key="2">nav 2</Menu.Item>
-              <Menu.Item key="3">nav 3</Menu.Item>
-            </Menu>
-          </Header>
-          <Layout>
-            <Sider
-                   trigger={null}
-                   collapsible
-                   collapsed={this.state.collapsed}
-            >
-              <Menu
-                mode="inline"
-                theme="dark"
-                defaultSelectedKeys={['1']}
-                defaultOpenKeys={['sub1']}
-                style={{ height: '100%', borderRight: 0 }}
+    const { previewVisible, previewImage } = this.state;
+    const { loading, loadingMore, showLoadingMore, listData } = this.state;
+    const loadMore = showLoadingMore ? (
+      <div style={{ textAlign: 'center', marginTop: 12, height: 32, lineHeight: '32px' }}>
+        {loadingMore && <Spin />}
+        {!loadingMore && <Button onClick={this.onLoadMore} icon={'arrow-down'} type={'primary'}>加载更多...</Button>}
+      </div>
+    ) : null;
+
+    return(
+      <App breadcrumbs = {this.bread}>
+        <List
+          itemLayout="vertical"
+          size="large"
+          loading={loading}
+          loadMore={loadMore}
+          dataSource={listData}
+          renderItem={(item, index) => {
+            const title = `${item.jobname}    ${item.companyname}   ${item.jobsalary[0]}k - ${item.jobsalary[1]}k`
+            return (
+              <List.Item
+                key={index}
+                actions={[<IconText type="star-o" text="156" />, <IconText type="like-o" text="156" />, <IconText type="message" text="2" />]}
+                extra={<img width={272} alt="logo" src={`${host}/public/${item.companypics[0]}`} onClick={this.handlePreview(item.companypics)}/>}
               >
-                <SubMenu key="sub1" title={<span><Icon type="user" /><span>subnav 1</span></span>}>
-                  <Menu.Item key="1">option1</Menu.Item>
-                  <Menu.Item key="2">option2</Menu.Item>
-                  <Menu.Item key="3">option3</Menu.Item>
-                  <Menu.Item key="4">option4</Menu.Item>
-                </SubMenu>
-                <SubMenu key="sub2" title={<span><Icon type="laptop" /><span>subnav 2</span></span>}>
-                  <Menu.Item key="5">option5</Menu.Item>
-                  <Menu.Item key="6">option6</Menu.Item>
-                  <Menu.Item key="7">option7</Menu.Item>
-                  <Menu.Item key="8">option8</Menu.Item>
-                </SubMenu>
-                <SubMenu key="sub3" title={<span><Icon type="notification" /><span>subnav 3</span></span>}>
-                  <Menu.Item key="9">option9</Menu.Item>
-                  <Menu.Item key="10">option10</Menu.Item>
-                  <Menu.Item key="11">option11</Menu.Item>
-                  <Menu.Item key="12">option12</Menu.Item>
-                </SubMenu>
-              </Menu>
-            </Sider>
-            <Layout style={{ padding: '0 24px 24px' }}>
-              <Breadcrumb style={{ margin: '16px 0' }}>
-                <Breadcrumb.Item>Home</Breadcrumb.Item>
-                <Breadcrumb.Item>List</Breadcrumb.Item>
-                <Breadcrumb.Item>App</Breadcrumb.Item>
-              </Breadcrumb>
-              <Content style={{ background: '#fff', padding: 24, margin: 0, minHeight: 280 }}>
-                Content
-              </Content>
-            </Layout>
-          </Layout>
-        </Layout>
-      </CSSLayout>
-    );
+                <div className={"ant-list-item-content ant-list-item-content-single"}>
+                  <List.Item.Meta
+                    avatar={<Avatar src={`${host}/public/${item.companypics[0]}`} />}
+                    title={<a href={item.companyname}>{title}</a>}
+                    description={item.companyinfo}
+                  />
+                  {item.jobrequire && item.jobrequire.length != 0 ?
+                  <ol>
+                    {item.jobrequire.map((item, key) => <li key={key}>{item}</li>)}
+                  </ol>: null}
+                </div>
+              </List.Item>
+            )}}
+        />
+        <Modal visible={previewVisible} footer={null} onCancel={this.handleCancel} width={1000}>
+          <Row type="flex" justify="space-around" align="middle">
+            <Col span={2}>
+              <Button type="primary" shape="circle" icon="arrow-left" size={'large'} onClick={this.left}/>
+            </Col>
+            <Col span={12}>
+              <img alt="example" style={{ width: '100%' }} src={`${host}/public/${previewImage}`} />
+            </Col>
+            <Col span={2}>
+              <Button type="primary" shape="circle" icon="arrow-right" size={'large'} style={{float: 'right'}} onClick={this.right}/>
+            </Col>
+          </Row>
+        </Modal>
+    </App>)
   }
 }
